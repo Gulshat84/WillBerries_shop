@@ -12,7 +12,6 @@ const mySwiper = new Swiper('.swiper-container', {
 
 const buttonCart = document.querySelector('.button-cart');
 const modalCart = document.querySelector('#modal-cart');
-const modalClose = document.querySelector('.modal-close');
 
 const openModal = function () {
 	modalCart.classList.add('show');
@@ -23,11 +22,12 @@ const closeModal = function () {
 };
 
 buttonCart.addEventListener('click', openModal);
-modalClose.addEventListener('click', closeModal);
+
 
 
 modalCart.addEventListener('click', function(event) {
-	if (event.target.classList.contains('overlay')) {
+	const target = event.target;
+	if (target.classList.contains('overlay') || target.classList.contains('modal-close')) {
 		closeModal();
 	}
 });
