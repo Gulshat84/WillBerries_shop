@@ -12,23 +12,52 @@ const mySwiper = new Swiper('.swiper-container', {
 
 const buttonCart = document.querySelector('.button-cart');
 const modalCart = document.querySelector('#modal-cart');
-const more = document.querySelector('.more');
-const navigationLink = document.querySelectorAll('.navigation-link');
+const viewAll = document.querySelectorAll('.view-all');
+const navigationLink = document.querySelectorAll('.navigation-link:not(.view-all)');
+const showAcsessories = document.querySelectorAll('.show-acsessories');
+const showClothing = document.querySelectorAll('.show-clothing');
 const longGoodsList = document.querySelector('.long-goods-list');
 const cartTableGoods = document.querySelector('.cart-table__goods');
 const cardTableTotal = document.querySelector('.card-table__total');
+const cartCount = document.querySelector('.cart-count');
+const btnDanger = document.querySelector('.btn-danger');
 
-const getGoods = async () => {
-	const result = await fetch('db/db.json');
-	if (!result.ok) {
-		throw 'Ошибочка вышла: ' + result.status
-	}
-	return await result.json();
+const checkGoods = () => {
+
+	const data = [];
+
+	return async () => {
+		if (data.length) return data;
+
+		const result = await fetch('db/db.json');
+		if (!result.ok) {
+			throw 'Ошибочка вышла: ' + result.status
+		}
+		data.push(...(await result.json()));
+
+		return data
+	};
 };
+
+const getGoods = checkGoods();
 
 const cart = {
 	cartGoods: [],
-	renderCart(){
+	getCountCartGoods() {
+		return this.cartGoods.length
+	},
+	countQuantity() {
+		const count = this.cartGoods.reduce((sum, item) => {
+			return sum + item.count
+		}, 0)
+		cartCount.textContent = count ? count : '';
+	},
+	clearCart() {
+		this.cartGoods.length = 0;
+		this.countQuantity();
+		this.renderCart();
+	},
+	renderCart() {
 		cartTableGoods.textContent = '';
 		this.cartGoods.forEach(({ id, name, price, count }) => {
 			const trGood = document.createElement('tr');
@@ -53,11 +82,13 @@ const cart = {
 
 		cardTableTotal.textContent = totalPrice + '$'
 	},
-	deleteGood(id){
+
+	deleteGood(id) {
 		this.cartGoods = this.cartGoods.filter(item => id !== item.id);
 		this.renderCart();
+		this.countQuantity();
 	},
-	minusGood(id){
+	minusGood(id) {
 		for (const item of this.cartGoods) {
 			if (item.id === id) {
 				if (item.count <= 1) {
@@ -69,8 +100,9 @@ const cart = {
 			}
 		}
 		this.renderCart();
+		this.countQuantity();
 	},
-	plusGood(id){
+	plusGood(id) {
 		for (const item of this.cartGoods) {
 			if (item.id === id) {
 				item.count++;
@@ -78,6 +110,7 @@ const cart = {
 			}
 		}
 		this.renderCart();
+		this.countQuantity();
 	},
 	addCartGoods(id){
 		const goodItem = this.cartGoods.find(item => item.id === id);
@@ -93,11 +126,13 @@ const cart = {
 						price,
 						count: 1
 					});
+					this.countQuantity();
 				});
 		}
 	},
 }
 
+btnDanger.addEventListener('click', cart.clearCart.bind(cart));
 
 document.body.addEventListener('click', event => {
 	const addToCart = event.target.closest('.add-to-cart');
@@ -113,7 +148,7 @@ cartTableGoods.addEventListener('click', event => {
 	if (target.tagName === 'BUTTON') {
 		const id = target.closest('.cart-item').dataset.id;
 
-		if (target.classList.contains('.cart-btn-delete')) {
+		if (target.classList.contains('cart-btn-delete')) {
 			cart.deleteGood(id);
 		};
 		
@@ -194,10 +229,16 @@ const renderCards = function (data) {
 	document.body.classList.add('show-goods');
 };
 
-more.addEventListener('click', event => {
+const showAll = function(event) {
 	event.preventDefault();
 	getGoods().then(renderCards);
+}
+
+viewAll.forEach(function(elem) {
+	elem.addEventListener('click', showAll);
 });
+
+
 
 const filterCards = function(field, value) {
 	getGoods()
@@ -210,9 +251,24 @@ navigationLink.forEach(function(link) {
 		event.preventDefault();
 		const field = link.dataset.field;
 		const value = link.textContent;
+		if(!field) return;
 		filterCards(field, value);
 	})
 });
+
+showAcsessories.forEach(item => {
+	item.addEventListener('click', e => {
+		e.preventDefault();
+		filterCards('category', 'Accessories')
+	});
+});
+
+showClothing.forEach(item => {
+	item.addEventListener('click', e => {
+		e.preventDefault();
+		filterCards('category', 'Clothing')
+	});
+})
 
 // server
 
@@ -223,14 +279,30 @@ const postData = dataUser => fetch('server.php', {
 	body: dataUser,
 });
 
+const validForm = (formData) => {
+	let valid = false;
+
+	for (const [, value] of formData) {
+		if (value.trim()) {
+			valid = true;
+		} else {
+			valid = false;
+			break;
+		}
+	}
+	return valid;
+}
+
 modalForm.addEventListener('submit', event => {
 	event.preventDefault();
 
 	const formData = new FormData(modalForm);
-	formData.append('cart', JSON.stringify(cart.cartGoods))
 
-	postData(formData)
-	  .then(response => {
+	if (validForm(formData) && getCountCartGoods()) {
+		formData.append('cart', JSON.stringify(cart.cartGoods))
+
+		postData(formData)
+		.then(response => {
 			if(!response.ok) {
 				throw new Error(response.status);
 			}
@@ -244,6 +316,18 @@ modalForm.addEventListener('submit', event => {
 		.finally(() => {
 			closeModal();
 			modalForm.reset();
-			cart.cartGoods.length = 0;
+			cart.clearCart();
 		});
+
+	} else {
+		if (getCountCartGoods()) {
+			alert('Добавьте товары в корзину');
+		}
+		if (validForm(FormData)) {
+			alert('Заполните поля правильно');
+		}
+	}
+	
+
+	
 });
